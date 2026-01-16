@@ -8,7 +8,7 @@
 #' @param eunits energy output: J results in kJ/m2/year or W then assume KWh, default = J
 #' @param ethresh threshold radiation (kJ/m2) below which efficiency fall to 0
 #' @param g TRUE/FALSE  graph results default=TRUE
-#' @param clr colour of grph default "blue"
+#' @param clr colour of graph default "blue"
 #' @param etype "both" uses both direct and diffuse, "direct' direct only,  only default="both"
 #' @author Naomi
 #' @return annual (power for each year), avg (average power) (see eunits for units)
