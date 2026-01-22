@@ -9,199 +9,53 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# ASSIGNMENT 3 Almond Yields
-
-Lobell et al., 2006 used data to build models of tree crop yield for California that captured how climate variation (place and time) might influence yield
-
--   Yield anomaly
-
--   Climate variables
-
-Assumptions...as you work think about what these are...
-
-# Assignment
-
-For this assignment you will work in *pairs*
-
-Your goal is to implement a simple model of almond yield anomaly response to climate
-
--   Inputs: daily times series of minimum, maximum daily temperatures and precipitation
-
--   Outputs: maximum, minimum and mean yield anomoly for a input time series
-
-The Lobell et al. 2006 paper will be the source for the transfer function that you will use in your model; specifically look at the equations in table 2.
-
-# Load in libraries
-
+# Assignment 3 - Almond Yields
+Much of climate change researches has focused on major annual crops, with less emphasis on perennial crops of agricultural importance. Lobell et al., 2006 developed a sophisticated model to assess the effects of climate change on California perennial crop yields, looking at 6 major crops: wine grapes, almonds, table grapes, oranges, walnuts, and avocados. This model takes into account climate parameters (Minimum and maximum temperature, precipitation), but did not include factors such as CO2 and farmer responses, and such is meant to provide a baseline expected response to expected temperature and precipitation change.
+This project will be reproducing the model for projected almond yield under possible climate change conditions.
+### Step 1: Load libraries
 ```{r}
 library(tidyverse)
 library(here)
 ```
-
-# Read in data
-
+### Step 2: Load climate data
 ```{r}
-climate <- read.table(here('Data', 'clim.txt'), header = TRUE)
+climate <- read.table(here("Data", "clim.txt"), header = TRUE)
 ```
-
+### Step 3:Clean and prepare climate data for analysis. 
+We want to isolate values for minimum temperature in February, and calculate the sum for precipitation in January. These are values specified in the paper specifically for almond yield.
 ```{r}
-# Verifying precipitation units in mm makes sense
-climate_1990 <- climate %>% 
-  filter(year == 1990) %>% 
-  select(precip)
-
-total_rain <- climate_1990
-sum(total_rain) # Rain total makes sense 
-```
-
-```{r}
-climate_clean <- climate %>% group_by(year) %>% 
-  filter(month)
-  summarise(tmin_c = mean(tmin_c),
-            precip = mean(precip)) %>% 
-  ungroup()
-```
-
-```{r}
-# Find row with lowest temp and highest precip
-
-result_row <- climate_clean[climate_clean$tmin_c == min(climate_clean$tmin_c) & climate_clean$precip == max(climate_clean$precip), ]
-
-result_row
-# climate_clean 
-```
-
-
-```{r}
-tmin_feb <- climate_clean %>% 
+# This model only pulls minimum temperature from February
+tmin_feb <- climate %>% 
+  group_by(year) %>% 
   filter(month == 2) %>% 
-  select(tmin_c) %>% 
-  pull()
-
-tmin_feb
-```
-
-```{r}
-precip_jan <- climate_clean %>% 
+  summarise(tmin_c = min(tmin_c)) %>% 
+  pull(tmin_c)
+# This model only pulls precipitation from January
+precip_jan <- climate %>% 
+  group_by(year) %>% 
   filter(month == 1) %>% 
-  select(precip) %>% 
-  pull()
-
-precip_jan
+  summarise(precip = sum(precip)) %>% 
+  pull(precip)
 ```
-
+### Step 4: Build model
+We can begin to actually build our model! We will write a function that calculate almond yield based on climate parameters, and will return a vector of estimated yields. 
+We will be sourcing our model from a separate R file, which includes the model itself and associated documentation.
 ```{r}
- all_time_feb_min <- climate %>% 
-  filter(month == 2) %>% 
-   select(tmin_c) %>% 
-   min()
- 
- all_time_feb_min
+source(here("R/almond_yield.R"))
 ```
-
+To make sure our model is written properly, we can run a simple test with 0 values and we would expect a value of 0.28. 
 ```{r}
- all_time_precip_min <- climate %>% 
-  filter(month == 1) %>% 
-   select(precip) %>% 
-   max()
- 
- all_time_precip_min
- 
+test <- almond_yield(0, 0)
+paste0("Does our model pass the 0 sensitivity test? ", test == 0.28)
 ```
-
+### Step 5: Run model
+Now that is passed the test, we can run our model with our climate vectors, and check our results against values we are expecting.
+Maximum = 1920 ton/acre
+Minimum = -0.027 ton/acre
+Mean = 182 ton/acre
 ```{r}
-almond_model <- function(all_time_feb_min, all_time_precip_min) {
-  Y <- (-0.015 * all_time_feb_min) - (0.00467 * all_time_feb_min^2) - (0.07  * all_time_precip_min) + (0.0043 * all_time_precip_min^2) + 0.28
-  return(Y)
-}
-
-almond_model(all_time_feb_min, all_time_precip_min)
+model <- almond_yield(tmin_feb = tmin_feb, precip_jan = precip_jan)
+max(model)
+min(model)
+mean(model)
 ```
-
-```{r}
-
-almond_model <- function(tmin_feb, precip_jan) {
-  Y <- -0.015 * tmin_feb - 0.00467 * tmin_feb^2 - 0.07 * precip_jan + 0.0043 * precip_jan^2 + 0.28
-  return(Y)
-}
-```
-
-```{r}
-almond_model(tmin_feb, precip_jan)
-```
-
-# What you will do - Model Set Up
-
-1.  Draw diagram to represent your model - how it will translate inputs to outputs, with parameters that shape the relationship between inputs an outputs - on your diagram list what your inputs, parameters and outputs are with units
-
-2.  Implement your diagram as an R function
-
-Here are some ideas to think though. The climate data is going to need to be processed (e.g note that the model uses climate data from a particular month - you have ALL of the climate as daily data). Here are two possible model outlines to follow
-
-● Almond_model \<- function(clim_var1, clim_var2, parameters){……}
-
-● Almond_model \<- function(clim, parameters){……}
-
-The first example is where the climate variables are separately input into the function - climate data is processed beforehand as part of model set up
-
-The second is where a climate data frame is the input to the function and you extract the useful data from it as part of the model.
-
-You can pick which option you prefer (or try both) If you want a coding challenge, you could create a model that works for any crop
-
-# Run the model
-
-3.  Run your model for the **clim.txt** data that is posted on Canvas,
-
-**clim.txt** has the following columns
-
-these 4 columns tell you when climate observations were made
-
--   *day*
--   *month*
--   *year*
--   *wy* (water year)
-
-the next 3 columns are the climate observations
-
--   maximum (*tmax_c*) daily temperature
--   minimum (*tmin_c*) daily temperature
--   precipitation (*precip*) on that day in mm
-
-# check your work
-
-I will tell you that
-
--   the maximum almond yield anomaly should be approximately 1920 ton/acre
--   the lowest almond yield anomaly should be approximately -0.027 ton/acre
--   the mean almond yield anomaly should be approximately 182 ton/acre
-
-# Notes
-
--   There are always multiple ways to code something in R;
-
--   Remember that we want to strive for our code being as simple and streamline as possible.
-
--   Style counts.
-
-    -   Make sure you choose meaningful variable names and add comments.
-    -   Include comments at the top of the function to tell the user what the inputs/outputs are and their units and format.
-
-# What to hand in on Canvas
-
-Two separate files (or a link to a repository with these files)
-
-1.  a R file that has your function definition
-2.  a pdf that includes your conceptual model (embed as picture), your workflow for running the model and shows how you applied the function to the test climate data (*clim.txt*)
-
-Due January 22 8am50 \# Grading Rubric
-
-Conceptual model (20 pts)
-
--   a clear diagram that corresponds with your R function (10 pts)
--   inputs and output and parameters shown on the diagram (10 pts)
-
-R Implementation (30 pts)
-
--   correct function implementation (\*.R file) (10 pts)
--   application of the function to **clim.txt** (in Rmarkdown file) (10 pts)
--   coding practices (clear documentation, informative variables names) (10 pts)
