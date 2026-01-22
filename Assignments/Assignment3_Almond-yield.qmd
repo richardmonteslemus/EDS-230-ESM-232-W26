@@ -55,7 +55,8 @@ sum(total_rain) # Rain total makes sense
 ```
 
 ```{r}
-climate_clean <- climate %>% group_by(month, year) %>% 
+climate_clean <- climate %>% group_by(year) %>% 
+  filter(month)
   summarise(tmin_c = mean(tmin_c),
             precip = mean(precip)) %>% 
   ungroup()
@@ -102,23 +103,15 @@ precip_jan
  all_time_precip_min <- climate %>% 
   filter(month == 1) %>% 
    select(precip) %>% 
-   min()
+   max()
  
  all_time_precip_min
  
- 
-```
-
-```{r}
-
-```
-
-```{}
 ```
 
 ```{r}
 almond_model <- function(all_time_feb_min, all_time_precip_min) {
-  Y <- -0.015 * all_time_feb_min - 0.00467 * all_time_feb_min^2 - 0.07 * all_time_precip_min + 0.0043 * all_time_precip_min^2 + 0.28
+  Y <- (-0.015 * all_time_feb_min) - (0.00467 * all_time_feb_min^2) - (0.07  * all_time_precip_min) + (0.0043 * all_time_precip_min^2) + 0.28
   return(Y)
 }
 
