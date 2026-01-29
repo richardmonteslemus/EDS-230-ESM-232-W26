@@ -1,0 +1,85 @@
+---
+title: 'Almond Yield as a Function '
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 3 - Almond Yields
+Much of climate change researches has focused on major annual crops, with less emphasis on perennial crops of agricultural importance. Lobell et al., 2006 developed a sophisticated model to assess the effects of climate change on California perennial crop yields, looking at 6 major crops: wine grapes, almonds, table grapes, oranges, walnuts, and avocados. This model takes into account climate parameters (Minimum and maximum temperature, precipitation), but did not include factors such as CO2 and farmer responses, and such is meant to provide a baseline expected response to expected temperature and precipitation change.
+This project will be reproducing the model for projected almond yield under possible climate change conditions.
+### Step 1: Load libraries
+```{r}
+library(tidyverse)
+library(here)
+```
+### Step 2: Load climate data
+```{r}
+climate <- read.table(here("Data", "clim.txt"), header = TRUE)
+```
+### Step 3:Clean and prepare climate data for analysis. 
+We want to isolate values for minimum temperature in February, and calculate the sum for precipitation in January. These are values specified in the paper specifically for almond yield.
+```{r}
+# This model only pulls minimum temperature from February
+tmin_feb <- climate %>% 
+  group_by(year) %>% 
+  filter(month == 2) %>% 
+  summarise(tmin_c = min(tmin_c)) %>% 
+  pull(tmin_c)
+# This model only pulls precipitation from January
+precip_jan <- climate %>% 
+  group_by(year) %>% 
+  filter(month == 1) %>% 
+  summarise(precip = sum(precip)) %>% 
+  pull(precip)
+```
+
+```{r}
+# Create a table containing minimum temperature from Feburary and precipitation sum in January
+tmin_feb_tbl <- climate %>% 
+  group_by(year) %>% 
+  filter(month == 2) %>% 
+  summarise(tmin_c = min(tmin_c))
+precip_jan_tbl <- climate %>% 
+  group_by(year) %>% 
+  filter(month == 1) %>% 
+  summarise(precip = sum(precip))
+
+# Combined table with temp and precip values per year 
+combined_pt_yield <- tmin_feb_tbl %>% 
+  left_join(precip_jan_tbl)
+```
+
+### Step 4: Build model
+We can begin to actually build our model! We will write a function that calculate almond yield based on climate parameters, and will return a vector of estimated yields. 
+We will be sourcing our model from a separate R file, which includes the model itself and associated documentation.
+```{r}
+source(here("R/almond_yield.R"))
+```
+To make sure our model is written properly, we can run a simple test with 0 values and we would expect a value of 0.28. 
+```{r}
+test <- almond_yield(0, 0)
+paste0("Does our model pass the 0 sensitivity test? ", test == 0.28)
+```
+### Step 5: Run model
+Now that is passed the test, we can run our model with our climate vectors, and check our results against values we are expecting.
+Maximum = 1920 ton/acre
+Minimum = -0.027 ton/acre
+Mean = 182 ton/acre
+```{r}
+model <- almond_yield(tmin_feb = tmin_feb, precip_jan = precip_jan)
+max(model)
+min(model)
+mean(model)
+```
+
+```{r}
+# Create combined table with tmin temp, precip, and yield 
+combined_pt_yield <- combined_pt_yield %>%
+  mutate(yield = almond_yield(combined_pt_yield$tmin_c, combined_pt_yield$precip))
+```
+
