@@ -27,9 +27,6 @@ result
 
 ```
 
-
-
-
 ## Profit Mode {.scrollable}
 
 Any questions from class
