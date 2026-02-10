@@ -26,35 +26,55 @@ how the state variables evolve described by differential equations
 
 ## Some examples {.scrollable}
 
+*How does wolf change with time? Might be a function of wolf population and deer population. In dynamic models more than one thing can change through time. Growth rate, carrying capacity, etc. change through time.*
+
 For all state variables you would have a derivative
 
 -   wolf population growth
+
     -   state variables (wolf, deer, vegetation)
     -   parameters (growth rates, carrying capacity, climate)
+
 -   snowpack
+
     -   state variable - (amount of snow)
+    -   \*dSnow/dtime = f(snow)\*
     -   parameters/inputs (sunlight, temperature, precipitation, wind)
+
 -   dams emissions of CO2
+
+    *Why do dams emit CO2 in the first place? This might be things like amount of sediment or bio-accumulation. Water temp and level might be inputs.*
+
+    *A regression equation could be used to model this*
+
+-   
+
     -   state variable (sediment, bioaccumulation, dissolved CO2) (maybe water temperature, water level)
     -   parameters inputs (sediment inputs, temperature, precipitation, dam operations)
+
 -   wildfire smoke impacts on drinking water
+
     -   state variable (contaminant concentration in air, water)
     -   parameters/inputs (wildfire size, wind, precipitation, water flow, biomass lost in fire) (really complicated as a dynamic model, versus simple statistical model of smoke impacts on water quality)
+
 -   groundwater
+
     -   state variable (groundwater level, contaminant concentration)
     -   parameters/inputs (precipitation, pumping, recharge, geology)
+
+    *If you just want to know how wildfires degrade water quality that is one model. Another is how fire travels through space and you measure this to understand the system.*
 
 ## Integration of state variables to evolve the system through time (or space) {.scrollable}
 
 Two options
 
-[ 1) explicit solution to differential equation is known; ]{style="color: blue;"}
+[1) explicit solution to differential equation is known;]{style="color: blue;"}
 
 -   this means you can integrate by 'math' - analytical solution
 -   we did this - $P = PO * exp(rt)$ coded in *exppop.R*
 -   you can get the answer exactly and quickly this way
 
-[ 2) not integrable ]{style="color: blue;"}
+[2) not integrable]{style="color: blue;"}
 
 -   must be solved by iteration;
 -   add the derivative value to current state (time t), to create state at time t + 1
@@ -115,6 +135,8 @@ growth_result$Panalytic <- growth_result$time %>% map_dbl(~ exppop(P0 = 1, r = 0
 
 # add a column using discrete growth model
 growth_result$Pdiscrete <- growth_result$time %>% map_dbl(~ discrete_logistic_pop(P0 = 1, r = 0.05, T = .x))
+
+# Stepping through caused a small error to occur because as population changes derivative changes
 ```
 
 ## Graph
@@ -163,7 +185,15 @@ Implement the differential equation as a function that
 
 My convention: name derivative functions starting with *d* to remind myself that they are computing a derivative
 
+*Work with numerical approach coded in R, this solver is just a way to do an integration*
+
+*You have to code up derivative as s function*
+
 ## ODE
+
+*Derivative with respect to time.*
+
+*Ordinary differential equations with respect to time*
 
 Only works for Ordinary Differential Equations - single independent variable (in our case time)
 
@@ -188,21 +218,21 @@ library(deSolve)
 
 
 # create initial conditions 20 rabbits
-
+initialrabbits = 20
 # create a vector of years that you want results for - we can skip years (by 2)
-
+years = seq(from = 1, to = 100, by = 2)
 
 # run the ode solver, using r = 0.05 (as defined above)
-
-
+Ptime = ode(y = initialrabbits, times = years, func=dexppop, parms = c(0.01))
+colnames(Ptime) = c("year", "Pop")
  # add column names to results
 
 
 # notice (by using attributes) that there are additional pieces of information including the method used for integration
-
+attributes(Ptime)
 # this also means you need to extract just the data frame for plotting
 # make results a data frame
-
+ggplot(as.data.frame(Ptime), aes(year, Pop)) + geom_point() + labs(y = "Pop", x = "Years")
 # plot population against years
 
 
@@ -216,20 +246,27 @@ library(deSolve)
 -   numerical integration by hand
 -   using an ODE solver to do the numerical integration
 
-```{r, all, echo=TRUE }
-# create a dataframe (growth_result) to store results with time as first column, and make r a value
+```{r}
+# create a dataframe to store results with time as first column
+r = 0.05
+growth_result <- data.frame(time = seq(from = 1, to = 100))
 
-# add a column using analytical growth model (exppop applied over time using map_dbl)
+# add a column using analytical growth model
+growth_result$Panalytic <- growth_result$time %>% map_dbl(~ exppop(P0 = 1, r = r, T = .x))
 
-# add a column using discrete growth model (discrete_logistic_pop applied over time using map_dbl)
+# add a column using discrete growth model
+growth_result$Pdiscrete <- growth_result$time %>% map_dbl(~ discrete_logistic_pop(P0 = 1, r = r, T = .x))
 
-
-# add a column for ODE result - two steps
+tmp <- ode(y=1, times=growth_result$time, dexppop, parms=c(r))
+growth_result$ode = tmp[,2]
 
 # gather both model results using a key called "Ptype", value "P"
+tmp <- growth_result %>% gather(key = "Ptype", value = "P", -time)
 
 # plot with model type as color
-
+p=ggplot(tmp, aes(time, P, col = Ptype)) +
+  geom_point()
+p
 ```
 
 # Try it
