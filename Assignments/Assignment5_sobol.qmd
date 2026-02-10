@@ -1,15 +1,13 @@
 ---
 title: "Sobol Sensitivity Analysis Assignment"
-output:
-  pdf_document: default
-  html_document: default
+author: Richard Montes Lemus 
+date: today 
+format: pdf
 ---
-
 
 *Assignment Part I*
 
-Choose one of the 3 papers below that provide an example of sensitivity analysis of model parameters.
-*Or* find another paper that uses model sensitivity analysis as part of understanding an enviromental topic
+Choose one of the 3 papers below that provide an example of sensitivity analysis of model parameters. *Or* find another paper that uses model sensitivity analysis as part of understanding an environmental topic
 
 After going through the paper, write a paragraph describing how results of the sensitivity analysis reported on in the paper might contribute to understanding (or prediction) within an environmental problem solving or management context.
 
@@ -18,6 +16,10 @@ Snow modeling
 Building Cooling Energy Mdoel
 
 Uranium in Groundwater Model
+
+Sobol sensitivity analysis for risk assessment of uranium in groundwater conducts a sobol sensitivity analysis to identify the most influential parameters for health risk due to Uranium. Exposure to Uranium in the natural environment occurs primarily through ingestion of contaminated food and water through groundwater. This analysis investigated the influence of each input in the ingestion model per age group. For all age groups, the most sensitive input was found to be the concentration of uranium (Cw) followed by intake rate (IR) and exposure frequency (EF). Cw and EF sobol values were found to be higher for adults, while the IR sobol value was found to be higher for children. This indicates that variation in IR explains more of the variation in health risk due to Uranium for children than it does for adults. Furthermore, risk for all age groups is impacted most by concentration of uranium in groundwater, with Cw explaining 70-78% of variance in health risk.
+
+These results could inform policy intervention. Since Cw is the dominant parameter across all age groups, polices should prioritize reducing uranium concentrations in drinking water through treatment or exploring alternative water sources. Furthermore, they should take into account the fact that children's health risk is impacted by intake rate more than it is for adults - so polices should take into account children's greater sensitivity for this parameter.
 
 *Assignment Part 2*
 
@@ -39,7 +41,7 @@ Typical values if $k_d$ and $k_o$ are 0.7 and 0.1 respectively (so use those as 
 
 Your task
 
-Repeat the sensitivity analysis that we have been working on in class BUT lets assume that we are in a different locations - where windpeeds are substantially higher and more variable AND vegetation is shorter - See details below
+Repeat the sensitivity analysis that we have been working on in class BUT lets assume that we are in a different locations - where windspeeds are substantially higher and more variable AND vegetation is shorter - See details below
 
 Consider the sensitivity of your estimate to uncertainty in the following parameters and inputs
 
@@ -57,52 +59,138 @@ For vegetation height assume that height is somewhere between 3.5 and 5.5 m (but
 
 For the $k_d$ and $k_0$ parameters you can assume that they are normally distributed with standard deviation of 1% of their default values
 
-Use the Sobel approach to generate parameter values for the 4 parameters
+## Use the Sobol approach to generate parameter values for the 4 parameters
 
-Run the atmospheric conductance model for these parameters
+```{r, message=FALSE}
+# Load necessary libraries
+library(sensitivity)
+library(tidyverse)
+# library(lhs)
+library(purrr)
+library(here)
+```
+
+```{r}
+source(here("R/Catm.R"))
+
+# Generate two versions of of parameter values based on distribution
+
+np <- 1000
+k_o <- rnorm(mean = 0.1, sd = 0.1 * 0.1, n = np)
+k_d <- rnorm(mean = 0.7, sd = 0.7 * 0.1, n = np)
+v <- rnorm(mean = 300, sd = 50, n = np)
+height <- runif(min = 3.5, max = 5.5, n = np)
+
+X1 <- cbind.data.frame(k_o, k_d, v, height = height)
+
+# repeat sampling
+k_o <- rnorm(mean = 0.1, sd = 0.1 * 0.1, n = np)
+k_d <- rnorm(mean = 0.7, sd = 0.7 * 0.1, n = np)
+v <- rnorm(mean = 300, sd = 50, n = np)
+height <- runif(min = 3.5, max = 5.5, n = np)
+
+X2 <- cbind.data.frame(k_o, k_d, v, height = height)
+
+# There are different versions of sobol functions that have different approaches for estimating parameters and indices, we use an approach implemented by jansen
+
+sens_Catm_Sobol <- sobolSalt(model = NULL, X1, X2, nboot = 100)
+
+```
+
+## Run the Atmospheric Conductance Model for Parameters and Estimate the Sobol Indices for the Output
+
+```{r}
+# Run model for all parameter sets
+parms <- as.data.frame(sens_Catm_Sobol$X)
+colnames(parms) <- colnames(X1)
+res <- pmap_dbl(parms, Catm)
+
+
+sens_Catm_Sobol <- sensitivity::tell(sens_Catm_Sobol, res, res.names = "ga")
+
+# main effect:  partitions variance (main effect without co-variance) - sums approximately to one
+sens_Catm_Sobol$S
+# useful to add names
+row.names(sens_Catm_Sobol$S) <- colnames(parms)
+sens_Catm_Sobol$S
+
+# total effect - accounts for parameter interactions
+row.names(sens_Catm_Sobol$T) <- colnames(parms)
+sens_Catm_Sobol$T
+
+print(sens_Catm_Sobol)
+```
 
 Plot conductance estimates in a way that accounts for parameter uncertainty
 
 Plot conductance estimates against windspeed use the parameter that is 2nd in terms of total effect on response
 
-Estimate the Sobel Indices for your output
+```{r, message=FALSE}
+# graph two most sensitive parameters
+both <- cbind.data.frame(parms, gs = sens_Catm_Sobol$y)
+
+# look at overall gs sensitvity to uncertainty
+ggplot(both, aes(x = gs)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean(both$gs), col = "cyan") + 
+  labs(
+    x = "Atmospheric Conductance (mm/s)",
+    y = "Frequency",
+    title = "Distribution of Atmospheric Conductance Due to\n Parameter Uncertainty"
+  ) +
+  theme_minimal()
+
+# Plot conductance against windspeed, colored by 2nd most important parameter (k_d)
+
+ggplot(both, aes(v, gs, col = k_d)) +
+  geom_point(alpha = 0.6) +
+  labs(
+    y = "Atmospheric Conductance (mm/s)", 
+    x = "Windspeed (cm/s)", 
+    title = "Conductance vs. Windspeed (Colored by k_d)",
+    color = "k_d parameter"
+  ) +
+  theme_minimal()
+```
 
 Comment on what this tells you about how atmospheric conductance and its sensitivity to variation in windspeed differs in this setting as compared to the setting that we examined in class where windspeed was lower and less variable and vegetation was taller.
 
-Submit a pdf or html document with your code, graphs, and answers to the questions on Canvas
-Due 
+In class, our model had a lower wind speed with less spread and vegetation was taller. This resulted in k_d having the greatest sensitivity (61% total effect) and k_o having the second greatest (23%). For this assignment, we had a larger wind speed with greater variability and shorter vegetation. This resulted in velocity having the greatest sensitivity (54%) and k_d being the second (19%).
+
+This tells us that atmospheric conductance becomes much more sensitive to wind speed variation when winds are high and variable and vegetation is shorter. On the other hand, vegetation structure parameters (k_d, k_o) dominate conductance uncertainty when there is taller vegetation and more stable and slower winds.
+
+Submit a pdf or html document with your code, graphs, and answers to the questions on Canvas Due
 
 *Grading Rubric*. Total points 80. (normalized to 10 for Canvas)
 
 **PART I (Paper Examples)**
 
-* Discussion of the implication of parameter uncertainty from example paper 
+-   Discussion of the implication of parameter uncertainty from example paper
 
-  * explanation directly relates to a specific parameter (10pts)
+    -   explanation directly relates to a specific parameter (10pts)
 
-  * explanation explores how parameter uncertainty might meaningfully impact results (10pts)
+    -   explanation explores how parameter uncertainty might meaningfully impact results (10pts)
 
 **PART II (Atmospheric Conductance and Sobol)**
 
-* Generation of parameter values using Sobol (10pts)
+-   Generation of parameter values using Sobol (10pts)
 
-* Running model for the parameters (10pts)
+-   Running model for the parameters (10pts)
 
-* Graph of uncertainty of the response variable
+-   Graph of uncertainty of the response variable
 
-  * meaningful graph (5pts)
+    -   meaningful graph (5pts)
 
-  * graphing style (axis labels, legibility) (5 pts)
+    -   graphing style (axis labels, legibility) (5 pts)
 
-* Graph of relationship between output and windspeed
+-   Graph of relationship between output and windspeed
 
-  * choice of color (see instructions) (5pts)
+    -   choice of color (see instructions) (5pts)
 
-  * graphing style (axis labels, legibility) (5 pts)
+    -   graphing style (axis labels, legibility) (5 pts)
 
-* Computing Sobol Indicators (10 pts)
+-   Computing Sobol Indicators (10 pts)
 
-* Discussion 
+-   Discussion
 
-  * correctly identifying how sensitivity to windspeed changed with setting (10pts)
-
+    -   correctly identifying how sensitivity to windspeed changed with setting (10pts)
