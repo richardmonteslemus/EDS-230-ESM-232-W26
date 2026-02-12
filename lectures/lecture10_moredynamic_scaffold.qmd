@@ -269,7 +269,7 @@ p=ggplot(tmp, aes(time, P, col = Ptype)) +
 p
 ```
 
-# Try it
+# Try it  
 
 -   try running them for longer time periods to see what happens
 -   change the value of r, P0 - see how it effects the results
@@ -293,7 +293,7 @@ Remember we have 3 ways now to calculate population
 
 ## Diffusion Conceptual model {.scrollable}
 
-![](img/diffusion/diffusion.001.jpeg)
+![](images/diffusion/diffusion.001.jpeg)  
 
 ## Modeling Diffusion {.scrollable}
 
@@ -328,7 +328,7 @@ source(here("R/diffusion.R"))
 
 # run our diffusion model (iterative difference equation) with initial concentration of 10, for 8 timestep (size 1m), and 10 space steps (size 1s)
 # using diffusion parameters 0.5 s/m2, and area 10 m2
-
+ 
 # a list is returned with our 3 data frames for concentration (conc), qin and qout
 
 # used filled contour to plot results
