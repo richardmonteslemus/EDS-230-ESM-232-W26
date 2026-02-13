@@ -12,6 +12,7 @@ editor: visual
 ## R code with carrying capacity {.scrollable}
 
 ```{r exampleode}
+
 library(deSolve)
 library(tidyverse)
 
@@ -20,12 +21,17 @@ source(here("R/dexppop_play.R"))
 dexppop_play
 
 # create parameter list
+initalrabbits <- 2
+years <- seq(from = 1, to = 100, by = 2)
 
+newparms <- list(r = 0.03, carry_capacity = 300)
 
 # apply solver
-
+results <- ode(initalrabbits, years, dexppop_play, newparms)
+head(results)
 
 # add more meaningful names
+colnames(results) <- c("year", "P")
 
 ```
 
@@ -33,30 +39,38 @@ dexppop_play
 
 ```{r, plotodep}
 # plot
-
+ggplot(as.data.frame(results), aes(year, P)) +
+  geom_point() +
+  labs(y = "Population", x="years")
 ```
 
 ## Try again with different parameters {.scrollable}
 
 ```{r exampleode2}
 # same initial condtions
-
+initalrabbits <- 2
+years <- seq(from = 1, to = 100, by = 2)
 
 # try again with different parameters
-
+alternativeparms <- list(r = 0.04, carry_capacity = 500)
+results2 <- ode(initalrabbits, years, dexppop_play, alternativeparms)
 
 
 # look at results
-
+head(results2)
+colnames(results2) <- c("year", "P_parm2")
 
 # plot
-
+ggplot(as.data.frame(results2), aes(year, P_parm2)) +
+  geom_point() +
+  labs(y = "Population", x="years")
 
 # compare by combining into a single data frame
-
+both <- inner_join(as.data.frame(results), as.data.frame(results2))
 
 #both_p <- both %>% gather(key = "model", value = "P", -year)
 
+both_p <- both %>% pivot_longer(-year, names_to = "model", values_to = "P")
 
 ```
 
@@ -64,6 +78,9 @@ dexppop_play
 
 ```{r, plotb}
 # plot
+ggplot(both_p, aes(year, P, col = model)) +
+  geom_point() +
+  labs(y = "Population", x = "years")
 
 ```
 
@@ -81,10 +98,20 @@ In class we've talking about summarizing results from dynamic models
 
 -   looking at spatial variation for multiple points in time
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(deSolve)
+library(here)
+```
+
 ## Extracting from our diffusion model {.scrollable}
 
 ```{r}
 source(here("R/diffusion.R"))
+resfast_fixtime <- diff1(initialC = 100, nx = 10, dx = 0.5, nt = 100, dt = 0.5, D = 0.2, area = 1)
+
+filled.contour(resfast_fixtime$conc, xlab = "time", ylab = "Distance Along Path", main = "Concentration through time and space")
 
 ```
 
@@ -96,14 +123,18 @@ Lets say this was a pollutant injected into a stream...
 
 -   lets say you have a vulnerable habit located 3 spatial units from the injection point
 
--   lets see what its pollutant exposure looks like.\
+-   lets see what its pollutant exposure looks like.
+
+```{r}
+plot(resfast_fixtime$conc[,1], ylab = "Conc. at 1 spatial time units from origin (1+2)", xlab = "timestep")
+```
 
 ```{r one option}
 # View(resfast_fixtime$conc)
 
-
 # graph a single point in space through time
 # single column (time)
+plot(resfast_fixtime$conc[5,], ylab = "Conc. at 5 spatial time units for all space chunks", xlab = "space")
 
 ```
 
@@ -112,10 +143,17 @@ Lets say this was a pollutant injected into a stream...
 ```{r all locations}
 # plot all trajectories
 # add a time column to concentration data frame and transform for plotting
+resl <- as.data.frame(resfast_fixtime$conc) %>%
+  mutate(time = seq(from = 1, to = 100)) %>%
+  pivot_longer(-time, names_to = "distance", values_to = "conc")
+
+ggplot(resl, aes(time, conc, col = distance)) +
+  geom_line()
 
 
 # plot all places at each point in time
-
+ggplot(resl, aes(time, conc, group=time)) + 
+  geom_boxplot()
 ```
 
 # Spatial summaries
@@ -125,13 +163,22 @@ Lets say this was a pollutant injected into a stream...
 ```{r spatial summaries}
 
 # use apply to calculate the spatial variation for each row (e.g for each time point)
+cvar = resfast_fixtime$conc %>% apply(1,var)
+cmean = resfast$conc %>% apply(1,mean)
 
+spatial_aver = cbind.data.frame(cvar, cmean, time=seq(from=1, to=100))
 # notice its the same as the number of time units (nt) used above
 
 # plot spatial variation through time
-
+ggplot(spatial_aver, aes(time, cvar)) + 
+  geom_line() + 
+  labs(y = "spatial variation")
 
 # plot coefficient of variation (so standard deviation divided by the mean)
+ggplot(spatial_aver, aes(time, 100*sqrt(cvar)/cmean)) + 
+  geom_line() + 
+  labs(y = "COV (as percent)")
+
 
 ```
 
@@ -140,3 +187,7 @@ Lets say this was a pollutant injected into a stream...
 ## In class exercise {.scrollable}
 
 For population model - write a function that summarizes something about the population over time
+
+```{r}
+
+```
