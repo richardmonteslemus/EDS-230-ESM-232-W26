@@ -187,7 +187,3 @@ ggplot(spatial_aver, aes(time, 100*sqrt(cvar)/cmean)) +
 ## In class exercise {.scrollable}
 
 For population model - write a function that summarizes something about the population over time
-
-```{r}
-
-```
