@@ -1,0 +1,182 @@
+---
+title: "EDS 230 Homework 6: Using Sobol with an ODE"
+format: pdf
+author: Leela Dixit, Jay Kim, Richard Montes Lemus
+---
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(deSolve)
+library(here)
+library(sensitivity)
+```
+
+### Forest Growth Model Implementation
+```{r}
+# source population growth model
+source(here("R/dforestgrowth.R"))
+```
+
+### Running the Model with Initial Parameters
+```{r}
+# initialize initial conditions
+Cinitial <- 10
+tm <- seq(from = 1, to = 300)
+parms = list(K = 250, r = 0.01, g = 2, thresh = 50)
+
+ode <- ode(Cinitial, tm, dforestgrowth, parms)
+
+colnames(ode) <- c("time", "forest_size")
+head(ode)
+tail(ode)
+```
+### Visualizing Forest Growth Trajectory
+```{r}
+ggplot(as.data.frame(ode), aes(x = time, y = forest_size)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Time series of forest growth with canopy\nclosure threshold at 50 kgC",
+       x = "Years",
+       y = "Forest Size (Carbon)")
+```
+
+### Run a sobol global sensitivity analysis with parameter sampling
+
+We are interested in estimating the **maximum forest size** varies with parameter variation over a time period of 300 years. We will assume all parameters are normally distributed.
+
+```{r sen, message=FALSE}
+# Assume initial forest size is 10 kg/C
+Cinitial <- 10
+
+# set the number of parameter samples you have as 2000
+np <- 2000
+
+# generate parameters assuming normal distribution
+K <- rnorm(mean = 250, sd = 25, n = np)
+r <- rnorm(mean = 0.01, sd = 0.001, n = np)
+g <- rnorm(mean = 2, sd = 0.2, n = np)
+thresh <- rnorm(mean = 50, sd = 5, n = np)
+
+# join into a data frame
+X1 <- cbind.data.frame(r = r, K = K, g = g, thresh = thresh)
+
+# repeat to get our second set of samples
+K <- rnorm(mean = 250, sd = 25, n = np)
+r <- rnorm(mean = 0.01, sd = 0.001, n = np)
+g <- rnorm(mean = 2, sd = 0.2, n = np)
+thresh <- rnorm(mean = 50, sd = 5, n = np)
+X2 <- cbind.data.frame(r = r, K = K, g = g, thresh = thresh)
+
+# fix any negative values and they are not meaningful (using pmax and map_df)
+X1 <- X1 %>% 
+  map_df(pmax, 0.0)
+X2 <- X2 %>% 
+  map_df(pmax, 0.0)
+
+# create our sobol object and get sets of
+#parameters for running the model, use sobolSalt
+sens_C <- sobolSalt(model = NULL, X1, X2, nboot = 300)
+
+# take a look at parameter sets
+str(sens_C)
+
+# lets add names
+colnames(sens_C$X) <- c("r", "K", "g", "thresh")
+
+head(sens_C$X)
+```
+
+
+```{r}
+# run for 300 days
+simtimes = seq(from = 1, to = 300)
+
+# use the first parameter set (or you could just pick a test value), 
+# not the list because ode wants parameters as a list, so name each
+parmtest = list(r = sens_C$X[1, "r"], 
+                K = sens_C$X[1, "K"],
+                g = sens_C$X[1, "g"],
+                thresh = sens_C$X[1, "thresh"])
+# run ode
+result <-  ode(y = Cinitial, 
+               times = simtimes, 
+               func = dforestgrowth, 
+               parms = parmtest)
+# turn ode results into a labelled data frame 
+result <- data.frame(time = result[,1], C = result[,2])
+
+# create function to pull out metrics we want 
+compute_metrics <- function(result) {
+  maxsize <- max(result$C)
+  return(maxsize)
+}
+# run metrics on results, lets use a threshold of 100
+compute_metrics(result)
+
+# wrap ode solver and computing metrics 
+p_wrapper <- function(r, K, g, 
+                      thresh, 
+                      Cinitial, 
+                      simtimes, 
+                      odefunc, 
+                      metricfunc) {
+  
+  # create parameter list
+  parms = list(r=r, K=K, g=g, thresh=thresh)
+  # run ode
+  result = ode(y = Cinitial, 
+               times = simtimes, 
+               func = odefunc, 
+               parms = parms)
+  # results as a data frame
+  result = data.frame(time = result[,1], C = result[,2])
+  # get and compute metrics
+  metric = metricfunc(result)
+  return(metric)
+}
+
+# test with specific r and K values (r=0.01, K=150) and Cinitial = 10 
+# just do 10 time steps
+p_wrapper(r = 0.01, K = 150, g = 2, thresh = 50,
+          Cinitial = 10, 
+          simtimes = seq(from = 1, to = 10),
+          odefunc = dforestgrowth, 
+          metricfunc = compute_metrics)
+
+# run the wrapper on full sobol samples
+allresults <- as.data.frame(sens_C$X) %>% 
+  pmap(p_wrapper, 
+       Cinitial = Cinitial, 
+       simtimes = simtimes, 
+       odefunc = dforestgrowth, 
+       metricfunc = compute_metrics)
+
+# pull out data from results list
+allres <- as.data.frame(allresults) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "metric",
+               values_to = "maxsize")
+```
+
+### Graph sobol results
+```{r}
+ggplot(allres, aes(x = maxsize)) +
+  geom_boxplot()
+```
+### Record sobol indices
+```{r}
+sens_C_maxsize <- sensitivity::tell(sens_C, allres$maxsize)
+
+rownames(sens_C_maxsize$S) <- c("r", "K", "g", "thresh")
+sens_C_maxsize$S
+
+rownames(sens_C_maxsize$T) <- c("r", "K", "g", "thresh")
+sens_C_maxsize$T
+```
+
+### Conclusion: 
+
+In 2-3 sentences, discuss what the results of your simulation might mean. (For example think about how what parameters climate change might influence).
+
+Our sensitivity analysis shows that maximum forest size is most influenced by the carrying capacity (K) and early growth rate (r), these explain a majority of the variation in outcomes. Post-canopy growth rate (g) contributed moderately, while canopy closure threshold had little influence on how large the forest ultimately gets. This has large implications for climate change, as both K and r could be reduced by increasing extreme weather events - leading to a smaller forests. 
