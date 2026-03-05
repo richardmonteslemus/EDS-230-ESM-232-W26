@@ -78,7 +78,7 @@ both_p <- both %>% pivot_longer(-year, names_to = "model", values_to = "P")
 # plot
 ggplot(both_p, aes(year, P, col = model)) +
   geom_point() +
-  labs(y = "Population", "years")
+  labs(y = "Population", x = "years")
 ```
 
 ## Extracting information from space-time results {.scrollable}

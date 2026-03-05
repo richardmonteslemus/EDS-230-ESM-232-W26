@@ -439,10 +439,10 @@ Try it
 ```{r sobol2, echo=TRUE}
 # sobol indices
 sens_forest_C50 <- sensitivity::tell(sens_forest, allres$Clong)
-rownames(sens_forest_C50$T) <- c("r", "harv", "K")
+rownames(sens_forest_C50$T) <- c("r", "harv", "K") # Total effect sensitivity analysis
 sens_forest_C50$T
 rownames(sens_forest_C50$S) <- c("r", "harv","K")
-sens_forest_C50$S
+sens_forest_C50$S # First order 
 ```
 
 ## Graph impact of harvest rate on growth accounting for uncertainty
